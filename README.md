@@ -1,9 +1,9 @@
-# KeyTalk - Speech-to-Text Virtual Keyboard
+# ParlaType - Speech-to-Text Virtual Keyboard
 
 **Author:** Matteo Benedetto ([Enne2](https://github.com/Enne2))  
 **Website:** [enne2.net](http://enne2.net)
 
-KeyTalk è un'applicazione Python che utilizza il riconoscimento vocale offline (Vosk) per trascrivere il parlato e digitarlo automaticamente come se fosse una tastiera fisica. 
+ParlaType è un'applicazione Python che utilizza il riconoscimento vocale offline (Vosk) per trascrivere il parlato e digitarlo automaticamente come se fosse una tastiera fisica. 
 
 **Nota Importante**: Questo progetto è specificamente concepito e ottimizzato per la **lingua italiana**. La mappatura dei tasti e il modello vocale incluso sono configurati per gestire correttamente i caratteri accentati e la fonetica italiana.
 
@@ -16,7 +16,7 @@ KeyTalk è un'applicazione Python che utilizza il riconoscimento vocale offline 
 
 ## Licenza e Modelli
 
-Il codice sorgente di KeyTalk è rilasciato sotto licenza MIT.
+Il codice sorgente di ParlaType è rilasciato sotto licenza MIT.
 
 Il modello vocale incluso (`vosk-model-it-0.22`) è sviluppato da [Alpha Cephei](https://alphacephei.com/vosk/) ed è rilasciato sotto licenza **Apache 2.0**. È quindi possibile ridistribuirlo liberamente insieme a questa applicazione.
 Per maggiori informazioni sui modelli Vosk, visitare la [pagina ufficiale dei modelli](https://alphacephei.com/vosk/models).
@@ -77,7 +77,7 @@ Inoltre, assicurati che i permessi su `/dev/uinput` siano corretti.
 
 ## Installazione Desktop (Opzionale)
 
-Per integrare KeyTalk nel menu delle applicazioni del tuo sistema desktop (GNOME, KDE, ecc.), puoi utilizzare lo script di installazione fornito:
+Per integrare ParlaType nel menu delle applicazioni del tuo sistema desktop (GNOME, KDE, ecc.), puoi utilizzare lo script di installazione fornito:
 
 ```bash
 ./install.sh

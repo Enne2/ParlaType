@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# KeyTalk Installation Script
+# ParlaType Installation Script
 # Generates a .desktop file with correct paths and installs it.
 
 # Get the absolute path of the directory containing this script
@@ -8,10 +8,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 VENV_PATH="$DIR/.venv"
 PYTHON_EXEC="$VENV_PATH/bin/python"
 MAIN_SCRIPT="$DIR/main.py"
-ICON_PATH="$DIR/keytalk.svg"
-DESKTOP_FILE_PATH="$HOME/.local/share/applications/keytalk.desktop"
+ICON_PATH="$DIR/parlatype.svg"
+DESKTOP_FILE_PATH="$HOME/.local/share/applications/parlatype.desktop"
 
-echo "=== KeyTalk Installer ==="
+echo "=== ParlaType Installer ==="
 echo "Project directory detected: $DIR"
 
 # 1. Check for Virtual Environment
@@ -43,7 +43,7 @@ mkdir -p "$HOME/.local/share/applications"
 
 cat <<EOF > "$DESKTOP_FILE_PATH"
 [Desktop Entry]
-Name=KeyTalk
+Name=ParlaType
 Comment=Speech-to-Text Virtual Keyboard
 Exec=$PYTHON_EXEC $MAIN_SCRIPT
 Icon=$ICON_PATH
@@ -62,6 +62,6 @@ else
 fi
 
 echo "=== Installation Complete ==="
-echo "You can now launch KeyTalk from your applications menu."
+echo "You can now launch ParlaType from your applications menu."
 echo "Note: Ensure your user is in the 'input' group to access the virtual keyboard:"
 echo "sudo usermod -aG input \$USER"

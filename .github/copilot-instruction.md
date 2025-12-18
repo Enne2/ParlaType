@@ -1,9 +1,9 @@
 # Istruzioni per GitHub Copilot (e altri agenti AI)
 
-Questo documento fornisce contesto e linee guida specifiche per lavorare su questo progetto "KeyTalk".
+Questo documento fornisce contesto e linee guida specifiche per lavorare su questo progetto "ParlaType".
 
 ## Panoramica del Progetto
-KeyTalk è un sistema di dettatura vocale per Linux che inietta l'input direttamente nel sistema operativo come una tastiera virtuale.
+ParlaType è un sistema di dettatura vocale per Linux che inietta l'input direttamente nel sistema operativo come una tastiera virtuale.
 
 ## Stack Tecnologico
 - **OS**: Linux (Esclusivo). Non compatibile con Windows/macOS a causa di `evdev`.

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-KeyTalk - Speech-to-Text Virtual Keyboard (Italian Edition)
-=========================================================
+ParlaType - Speech-to-Text Virtual Keyboard (Italian Edition)
+=============================================================
 
-KeyTalk is a Python application that uses offline speech recognition (Vosk)
+ParlaType is a Python application that uses offline speech recognition (Vosk)
 to transcribe speech and automatically type it as if it were a physical keyboard.
 
 This version is specifically tuned for the **Italian language**, including:
@@ -223,7 +223,7 @@ class AppWindow(Gtk.Window):
     Main GTK Application Window.
     """
     def __init__(self):
-        Gtk.Window.__init__(self, title="KeyTalk - Speech to Text")
+        Gtk.Window.__init__(self, title="ParlaType - Speech to Text")
         self.set_border_width(10)
         self.set_default_size(400, 300)
         self.set_position(Gtk.WindowPosition.CENTER)
@@ -275,7 +275,7 @@ class AppWindow(Gtk.Window):
     def _setup_tray_icon(self):
         if AppIndicator3:
             self.indicator = AppIndicator3.Indicator.new(
-                "keytalk-app",
+                "parlatype-app",
                 "microphone",
                 AppIndicator3.IndicatorCategory.APPLICATION_STATUS
             )
@@ -285,7 +285,7 @@ class AppWindow(Gtk.Window):
             # Fallback for systems without AppIndicator
             self.status_icon = Gtk.StatusIcon()
             self.status_icon.set_from_icon_name("microphone")
-            self.status_icon.set_tooltip_text("KeyTalk")
+            self.status_icon.set_tooltip_text("ParlaType")
             self.status_icon.connect("popup-menu", self.on_tray_popup)
             self.status_icon.set_visible(True)
 
