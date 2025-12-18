@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=KeyTalk
+Comment=Speech-to-Text Virtual Keyboard
+Exec=/home/enne2/dev/keyTalk/.venv/bin/python /home/enne2/dev/keyTalk/main.py
+Icon=/home/enne2/dev/keyTalk/keytalk.svg
+Terminal=false
+Type=Application
+Categories=Utility;Accessibility;
+StartupNotify=true
