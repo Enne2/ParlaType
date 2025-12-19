@@ -6,14 +6,47 @@
 MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-it-0.22.zip"
 MODEL_NAME="vosk-model-it-0.22"
 ZIP_NAME="vosk-model-it-0.22.zip"
+SYSTEM_INSTALL_DIR="/usr/share/parlatype/models"
+
+# Setup configuration directory and .env file (User only)
+if [ "$EUID" -ne 0 ]; then
+    CONFIG_DIR="$HOME/.config/parlatype"
+    ENV_FILE="$CONFIG_DIR/.env"
+    
+    if [ ! -d "$CONFIG_DIR" ]; then
+        echo "Creating configuration directory at $CONFIG_DIR..."
+        mkdir -p "$CONFIG_DIR"
+    fi
+    
+    if [ ! -f "$ENV_FILE" ]; then
+        echo "Creating default configuration file at $ENV_FILE..."
+        cat > "$ENV_FILE" <<EOL
+# ParlaType Configuration
+# OpenAI API Key for LLM correction (optional)
+OPENAI_API_KEY=your_api_key_here
+# LLM Model to use (e.g., gpt-4o-mini, gpt-4)
+LLM_MODEL=gpt-4o-mini
+EOL
+        echo "Configuration file created. Please edit $ENV_FILE to add your OpenAI API key if needed."
+    else
+        echo "Configuration file already exists at $ENV_FILE."
+    fi
+fi
 
 # Determine install location based on user
 if [ "$EUID" -eq 0 ]; then
-    INSTALL_DIR="/usr/share/parlatype/models"
+    INSTALL_DIR="$SYSTEM_INSTALL_DIR"
     echo "Running as root. Installing system-wide to $INSTALL_DIR"
 else
     INSTALL_DIR="$HOME/.local/share/parlatype/models"
-    echo "Running as user. Installing locally to $INSTALL_DIR"
+    echo "Running as user."
+    
+    # Check if model exists system-wide
+    if [ -d "$SYSTEM_INSTALL_DIR/$MODEL_NAME" ]; then
+        echo "Model found system-wide at $SYSTEM_INSTALL_DIR/$MODEL_NAME"
+        echo "Skipping local model installation."
+        exit 0
+    fi
 fi
 
 # Check if model already exists
@@ -54,29 +87,4 @@ fi
 rm "$INSTALL_DIR/$ZIP_NAME"
 
 echo "Model installed successfully!"
-
-# Setup configuration directory and .env file
-if [ "$EUID" -ne 0 ]; then
-    CONFIG_DIR="$HOME/.config/parlatype"
-    ENV_FILE="$CONFIG_DIR/.env"
-    
-    if [ ! -d "$CONFIG_DIR" ]; then
-        echo "Creating configuration directory at $CONFIG_DIR..."
-        mkdir -p "$CONFIG_DIR"
-    fi
-    
-    if [ ! -f "$ENV_FILE" ]; then
-        echo "Creating default configuration file at $ENV_FILE..."
-        cat > "$ENV_FILE" <<EOL
-# ParlaType Configuration
-# OpenAI API Key for LLM correction (optional)
-OPENAI_API_KEY=your_api_key_here
-# LLM Model to use (e.g., gpt-4o-mini, gpt-4)
-LLM_MODEL=gpt-4o-mini
-EOL
-        echo "Configuration file created. Please edit $ENV_FILE to add your OpenAI API key if needed."
-    else
-        echo "Configuration file already exists at $ENV_FILE."
-    fi
-fi
 
