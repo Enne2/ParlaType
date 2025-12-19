@@ -30,6 +30,11 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 # Load environment variables
+# Try loading from user config directory first
+config_dir = os.path.expanduser("~/.config/parlatype")
+env_path = os.path.join(config_dir, ".env")
+load_dotenv(env_path)
+# Also try default locations (cwd, etc) as fallback/override
 load_dotenv()
 
 # Ensure GTK 4 compatibility
@@ -66,7 +71,8 @@ MODEL_PATH = get_model_path()
 SAMPLE_RATE = 16000
 FRAMES_PER_BUFFER = 8000
 READ_CHUNK_SIZE = 4000
-PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+SYSTEM_PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+PROMPTS_DIR = os.path.expanduser("~/.local/share/parlatype/prompts")
 if not os.path.exists(PROMPTS_DIR):
     os.makedirs(PROMPTS_DIR)
 
@@ -95,11 +101,22 @@ class LLMCorrector:
         self.enabled = False
 
     def load_prompt(self, filename):
+        # Try user dir first
+        user_path = os.path.join(PROMPTS_DIR, filename)
+        if os.path.exists(user_path):
+            try:
+                with open(user_path, 'r') as f:
+                    return f.read()
+            except Exception as e:
+                print(f"Error loading user prompt {filename}: {e}")
+        
+        # Try system dir
+        system_path = os.path.join(SYSTEM_PROMPTS_DIR, filename)
         try:
-            with open(os.path.join(PROMPTS_DIR, filename), 'r') as f:
+            with open(system_path, 'r') as f:
                 return f.read()
         except Exception as e:
-            print(f"Error loading prompt {filename}: {e}")
+            print(f"Error loading system prompt {filename}: {e}")
             return "Sei un assistente che corregge trascrizioni."
 
     def save_prompt(self, filename, content):
@@ -398,8 +415,13 @@ class PromptSettingsWindow(Gtk.Window):
 
     def refresh_file_list(self):
         self.file_combo.remove_all()
-        files = [f for f in os.listdir(PROMPTS_DIR) if f.endswith(".txt")]
-        for f in files:
+        files = set()
+        if os.path.exists(PROMPTS_DIR):
+            files.update([f for f in os.listdir(PROMPTS_DIR) if f.endswith(".txt")])
+        if os.path.exists(SYSTEM_PROMPTS_DIR):
+            files.update([f for f in os.listdir(SYSTEM_PROMPTS_DIR) if f.endswith(".txt")])
+            
+        for f in sorted(list(files)):
             self.file_combo.append_text(f)
         if not files:
             self.file_combo.append_text("default.txt")

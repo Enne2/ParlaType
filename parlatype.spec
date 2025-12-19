@@ -1,5 +1,5 @@
 Name:           parlatype
-Version:        1.0.0
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        Speech-to-Text Virtual Keyboard (Italian Edition)
 
@@ -53,7 +53,7 @@ mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
 cp -r dist/main/* %{buildroot}/usr/lib/%{name}/
 
 # Install setup script
-cp parlatype-setup %{buildroot}/usr/bin/
+install -m 755 parlatype-setup %{buildroot}/usr/bin/
 
 # Create a symlink to the binary
 ln -s /usr/lib/%{name}/parlatype %{buildroot}/usr/bin/parlatype
