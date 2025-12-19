@@ -356,8 +356,9 @@ class AppWindow(Adw.ApplicationWindow):
 
     def update_text(self, text, is_final):
         if is_final:
+            timestamp = time.strftime('%H:%M:%S')
             end_iter = self.textbuffer.get_end_iter()
-            self.textbuffer.insert(end_iter, f"\n[Final]: {text}")
+            self.textbuffer.insert(end_iter, f"\n[{timestamp}]: {text}")
             # Auto-scroll to bottom
             self.textview.scroll_to_iter(self.textbuffer.get_end_iter(), 0.0, False, 0.0, 0.0)
         else:
