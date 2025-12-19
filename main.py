@@ -529,6 +529,7 @@ class AppWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="ParlaType - Speech to Text")
         self.set_default_size(450, 350)
+        self.set_icon_name("parlatype")
         
         self.llm_corrector = LLMCorrector()
         self.keyboard = VirtualKeyboard()
@@ -575,10 +576,16 @@ class AppWindow(Adw.ApplicationWindow):
         self.llm_switch.connect("state-set", self.on_llm_toggled)
         hbox_llm.append(self.llm_switch)
 
-        # Status Label
+        # Status Area (Label + Spinner)
+        hbox_status = Gtk.Box(spacing=10)
+        content_vbox.append(hbox_status)
+
         self.status_label = Gtk.Label(label="Initializing...")
         self.status_label.set_halign(Gtk.Align.START)
-        content_vbox.append(self.status_label)
+        hbox_status.append(self.status_label)
+
+        self.spinner = Gtk.Spinner()
+        hbox_status.append(self.spinner)
 
         # Text Area for logs/transcript
         self.textview = Gtk.TextView()
@@ -681,7 +688,8 @@ class AppWindow(Adw.ApplicationWindow):
         if is_final:
             # Apply LLM correction if enabled
             if self.llm_corrector.enabled:
-                self.status_label.set_text("Correcting with LLM...")
+                self.status_label.set_text(f"Correcting: {text[:30]}...")
+                self.spinner.start()
                 # Run in a separate thread to avoid blocking UI
                 threading.Thread(target=self._process_correction, args=(text,)).start()
             else:
@@ -691,12 +699,19 @@ class AppWindow(Adw.ApplicationWindow):
 
     def _process_correction(self, text):
         corrected = self.llm_corrector.correct(text)
-        GLib.idle_add(self._finalize_text, corrected)
+        GLib.idle_add(self._finalize_text, corrected, text)
 
-    def _finalize_text(self, text):
+    def _finalize_text(self, text, original_text=None):
+        self.spinner.stop()
         timestamp = time.strftime('%H:%M:%S')
         end_iter = self.textbuffer.get_end_iter()
-        self.textbuffer.insert(end_iter, f"\n[{timestamp}]: {text}")
+        
+        if original_text and original_text != text:
+            self.textbuffer.insert(end_iter, f"\n[{timestamp}] (Corrected): {text}")
+            print(f"LLM Corrected: '{original_text}' -> '{text}'")
+        else:
+            self.textbuffer.insert(end_iter, f"\n[{timestamp}]: {text}")
+            
         # Auto-scroll to bottom
         self.textview.scroll_to_iter(self.textbuffer.get_end_iter(), 0.0, False, 0.0, 0.0)
         self.status_label.set_text("Ready.")

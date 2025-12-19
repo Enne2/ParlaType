@@ -1,12 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
 
+datas, binaries, hiddenimports = collect_all('vosk')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
-    datas=[('parlatype.svg', '.')],
-    hiddenimports=[],
+    binaries=binaries,
+    datas=datas + [('parlatype.svg', '.'), ('prompts', 'prompts')],
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
