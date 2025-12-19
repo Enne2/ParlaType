@@ -28,7 +28,7 @@ rm -rf "$TEMP_DIR"
 cp parlatype.spec "$RPMBUILD_DIR/SPECS/"
 
 # Build RPM
-echo "Building RPM..."
+echo "Building RPM using $(nproc) cores..."
 rpmbuild -ba "$RPMBUILD_DIR/SPECS/parlatype.spec"
 
 echo "Done. RPMs are in $RPMBUILD_DIR/RPMS/"

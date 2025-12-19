@@ -1,6 +1,6 @@
 Name:           parlatype
 Version:        2.0.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Speech-to-Text Virtual Keyboard (Italian Edition)
 
 %define debug_package %{nil}
@@ -32,15 +32,18 @@ This version is specifically tuned for the Italian language.
 %setup -q
 
 %build
+# Optimize build for multiple cores
+export MAKEFLAGS="-j$(nproc)"
+export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
+
 # Create virtual environment and install dependencies
 python3 -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-pip install pyinstaller
+pip install --upgrade pip --no-compile
+pip install -r requirements.txt --no-compile
+pip install pyinstaller --no-compile
 
-# Compile with PyInstaller using all available cores for the build process
-# Note: PyInstaller itself doesn't have a -j flag, but we can run it.
+# Compile with PyInstaller
 pyinstaller --noconfirm main.spec
 
 %install
