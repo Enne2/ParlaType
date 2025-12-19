@@ -4,3 +4,5 @@ evdev
 PyGObject
 trayer
 dbus-python
+python-dotenv
+openai

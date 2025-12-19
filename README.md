@@ -6,7 +6,7 @@
 ParlaType è un'applicazione Python che utilizza il riconoscimento vocale offline (Vosk) per trascrivere il parlato e digitarlo automaticamente come se fosse una tastiera fisica. 
 
 **Nota Importante**: Questo progetto è specificamente concepito e ottimizzato per la **lingua italiana**. La mappatura dei tasti e il modello vocale incluso sono configurati per gestire correttamente i caratteri accentati e la fonetica italiana.
-
+tar -tzf ~/rpmbuild/SOURCES/parlatype-1.0.0.tar.gz > /dev/null && echo "Tarball OK" || echo "Tarball Corrupt"
 ## Caratteristiche
 
 - **Riconoscimento Vocale Offline**: Utilizza Vosk, quindi non richiede connessione internet e garantisce la privacy.

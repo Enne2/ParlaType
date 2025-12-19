@@ -475,7 +475,7 @@ class AppWindow(Adw.ApplicationWindow):
         
         # Menu Button in Header
         menu = Gio.Menu()
-        menu.append("Prompt Settings", "win.prompt_settings")
+        menu.append("Prompt Settings", "app.prompt_settings")
         
         menu_btn = Gtk.MenuButton()
         menu_btn.set_icon_name("open-menu-symbolic")
@@ -485,7 +485,7 @@ class AppWindow(Adw.ApplicationWindow):
         # Actions
         action = Gio.SimpleAction.new("prompt_settings", None)
         action.connect("activate", self.on_prompt_settings)
-        self.add_action(action)
+        app.add_action(action)
 
         # Content Area
         content_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
