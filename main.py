@@ -24,6 +24,7 @@ import time
 import threading
 import gi
 import pyaudio
+import fcntl
 from vosk import Model, KaldiRecognizer
 from evdev import UInput, ecodes as e
 from dotenv import load_dotenv
@@ -367,24 +368,61 @@ class InputDialog(Gtk.Window):
             self.callback(text)
         self.close()
 
-class PromptSettingsWindow(Gtk.Window):
+class SettingsWindow(Gtk.Window):
     def __init__(self, parent, llm_corrector):
-        super().__init__(title="Prompt Settings")
+        super().__init__(title="Settings")
         self.set_transient_for(parent)
         self.set_modal(True)
-        self.set_default_size(600, 400)
+        self.set_default_size(600, 450)
         self.llm_corrector = llm_corrector
 
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        vbox.set_margin_top(10)
-        vbox.set_margin_bottom(10)
-        vbox.set_margin_start(10)
-        vbox.set_margin_end(10)
-        self.set_child(vbox)
+        notebook = Gtk.Notebook()
+        self.set_child(notebook)
+
+        # --- General Tab ---
+        general_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        general_box.set_margin_top(20)
+        general_box.set_margin_bottom(20)
+        general_box.set_margin_start(20)
+        general_box.set_margin_end(20)
+        notebook.append_page(general_box, Gtk.Label(label="General"))
+
+        # API Key
+        lbl_key = Gtk.Label(label="OpenAI API Key", xalign=0)
+        general_box.append(lbl_key)
+
+        self.api_key_entry = Gtk.Entry()
+        self.api_key_entry.set_visibility(False)
+        current_key = os.getenv("OPENAI_API_KEY", "")
+        self.api_key_entry.set_text(current_key)
+        general_box.append(self.api_key_entry)
+
+        # Model
+        lbl_model = Gtk.Label(label="LLM Model", xalign=0)
+        general_box.append(lbl_model)
+
+        self.model_entry = Gtk.Entry()
+        current_model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+        self.model_entry.set_text(current_model)
+        general_box.append(self.model_entry)
+
+        # Save Button (General)
+        save_gen_btn = Gtk.Button(label="Save Settings")
+        save_gen_btn.add_css_class("suggested-action")
+        save_gen_btn.connect("clicked", self.on_save_general)
+        general_box.append(save_gen_btn)
+
+        # --- Prompts Tab ---
+        prompts_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        prompts_box.set_margin_top(10)
+        prompts_box.set_margin_bottom(10)
+        prompts_box.set_margin_start(10)
+        prompts_box.set_margin_end(10)
+        notebook.append_page(prompts_box, Gtk.Label(label="Prompts"))
 
         # File selection
         hbox_file = Gtk.Box(spacing=10)
-        vbox.append(hbox_file)
+        prompts_box.append(hbox_file)
         
         self.file_combo = Gtk.ComboBoxText()
         self.refresh_file_list()
@@ -399,7 +437,7 @@ class PromptSettingsWindow(Gtk.Window):
         # Text Area
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_vexpand(True)
-        vbox.append(scrolled)
+        prompts_box.append(scrolled)
 
         self.textview = Gtk.TextView()
         self.textview.set_wrap_mode(Gtk.WrapMode.WORD)
@@ -407,11 +445,35 @@ class PromptSettingsWindow(Gtk.Window):
         self.textbuffer.set_text(self.llm_corrector.system_prompt)
         scrolled.set_child(self.textview)
 
-        # Save Button
-        save_btn = Gtk.Button(label="Save & Apply")
-        save_btn.add_css_class("suggested-action")
-        save_btn.connect("clicked", self.on_save_clicked)
-        vbox.append(save_btn)
+        # Save Button (Prompts)
+        save_prompt_btn = Gtk.Button(label="Save Prompt")
+        save_prompt_btn.add_css_class("suggested-action")
+        save_prompt_btn.connect("clicked", self.on_save_prompt)
+        prompts_box.append(save_prompt_btn)
+
+    def on_save_general(self, btn):
+        new_key = self.api_key_entry.get_text().strip()
+        new_model = self.model_entry.get_text().strip()
+        
+        # Update runtime
+        os.environ["OPENAI_API_KEY"] = new_key
+        os.environ["LLM_MODEL"] = new_model
+        self.llm_corrector.client.api_key = new_key
+        self.llm_corrector.model = new_model
+        
+        # Save to .env
+        config_dir = os.path.expanduser("~/.config/parlatype")
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+        env_path = os.path.join(config_dir, ".env")
+        
+        try:
+            with open(env_path, "w") as f:
+                f.write(f"OPENAI_API_KEY={new_key}\n")
+                f.write(f"LLM_MODEL={new_model}\n")
+            self.close()
+        except Exception as e:
+            print(f"Error saving .env: {e}")
 
     def refresh_file_list(self):
         self.file_combo.remove_all()
@@ -436,45 +498,29 @@ class PromptSettingsWindow(Gtk.Window):
         def on_filename_entered(filename):
             if not filename.endswith(".txt"):
                 filename += ".txt"
-            # Clear text buffer for new prompt
             self.textbuffer.set_text("")
-            # Add to combo and select
             self.file_combo.append_text(filename)
-            self.file_combo.set_active_id(filename) # This might not work if id not set, let's just select last
-            # Since we just appended, it should be the last one
-            # But we need to handle the combo logic. 
-            # Simpler: just set the text in combo entry if it was editable, but it's not.
-            # Let's refresh list? No, file doesn't exist yet.
-            # We'll just pretend it's selected by setting a flag or just letting the user type.
-            # Actually, the save button uses the combo active text.
-            # We need to make sure the combo shows this new filename.
-            # ComboBoxText doesn't easily allow setting arbitrary text if not in model.
-            # So we add it.
-            # But wait, refresh_file_list clears it.
-            # Let's just add it.
-            # self.file_combo.append_text(filename) # Already done above
-            # Select it
-            # To select by text in ComboBoxText is tricky without ID.
-            # Let's iterate to find it.
+            # Select the new item (last one)
             model = self.file_combo.get_model()
             iter_ = model.get_iter_first()
+            last_iter = None
             while iter_:
-                if model.get_value(iter_, 0) == filename:
-                    self.file_combo.set_active_iter(iter_)
-                    break
+                last_iter = iter_
                 iter_ = model.iter_next(iter_)
+            if last_iter:
+                self.file_combo.set_active_iter(last_iter)
         
         InputDialog(self, "New Prompt", "Enter filename (e.g. my_prompt):", on_filename_entered).present()
 
-    def on_save_clicked(self, widget):
+    def on_save_prompt(self, widget):
         start, end = self.textbuffer.get_bounds()
         content = self.textbuffer.get_text(start, end, True)
         filename = self.file_combo.get_active_text()
         if not filename:
-            filename = "custom.txt" # Fallback
+            filename = "custom.txt"
         
         if self.llm_corrector.save_prompt(filename, content):
-            self.close()
+            pass
 
 class AppWindow(Adw.ApplicationWindow):
     """
@@ -497,7 +543,7 @@ class AppWindow(Adw.ApplicationWindow):
         
         # Menu Button in Header
         menu = Gio.Menu()
-        menu.append("Prompt Settings", "app.prompt_settings")
+        menu.append("Settings", "app.settings")
         
         menu_btn = Gtk.MenuButton()
         menu_btn.set_icon_name("open-menu-symbolic")
@@ -505,8 +551,8 @@ class AppWindow(Adw.ApplicationWindow):
         header.pack_end(menu_btn)
         
         # Actions
-        action = Gio.SimpleAction.new("prompt_settings", None)
-        action.connect("activate", self.on_prompt_settings)
+        action = Gio.SimpleAction.new("settings", None)
+        action.connect("activate", self.on_settings)
         app.add_action(action)
 
         # Content Area
@@ -598,8 +644,8 @@ class AppWindow(Adw.ApplicationWindow):
         else:
             print("Trayer not available. System tray icon will not be shown.")
 
-    def on_prompt_settings(self, action, param):
-        win = PromptSettingsWindow(self, self.llm_corrector)
+    def on_settings(self, action, param):
+        win = SettingsWindow(self, self.llm_corrector)
         win.present()
 
     def on_llm_toggled(self, widget, state):
@@ -676,6 +722,24 @@ class ParlaTypeApp(Adw.Application):
             win = AppWindow(self)
         win.present()
 
+# Single Instance Lock
+LOCK_FILE = os.path.join(os.path.expanduser("~/.cache"), "parlatype.lock")
+
+def request_lock():
+    try:
+        if not os.path.exists(os.path.dirname(LOCK_FILE)):
+            os.makedirs(os.path.dirname(LOCK_FILE))
+        fp = open(LOCK_FILE, 'w')
+        fcntl.lockf(fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fp
+    except IOError:
+        return None
+
 if __name__ == "__main__":
+    lock_file = request_lock()
+    if not lock_file:
+        print("ParlaType is already running.")
+        sys.exit(1)
+
     app = ParlaTypeApp()
     sys.exit(app.run(sys.argv))

@@ -1,6 +1,6 @@
 Name:           parlatype
 Version:        2.0.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Speech-to-Text Virtual Keyboard (Italian Edition)
 
 %define debug_package %{nil}
