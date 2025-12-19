@@ -26,6 +26,11 @@ import gi
 import pyaudio
 from vosk import Model, KaldiRecognizer
 from evdev import UInput, ecodes as e
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# Load environment variables
+load_dotenv()
 
 # Ensure GTK 4 compatibility
 gi.require_version('Gtk', '4.0')
@@ -61,6 +66,9 @@ MODEL_PATH = get_model_path()
 SAMPLE_RATE = 16000
 FRAMES_PER_BUFFER = 8000
 READ_CHUNK_SIZE = 4000
+PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+if not os.path.exists(PROMPTS_DIR):
+    os.makedirs(PROMPTS_DIR)
 
 # Character mapping for Italian Keyboard Layout
 # Maps characters to evdev key codes
@@ -77,6 +85,75 @@ CHAR_MAP = {
     '-': e.KEY_SLASH, '/': e.KEY_7, ';': e.KEY_COMMA, ':': e.KEY_DOT,
     '\n': e.KEY_ENTER
 }
+
+class LLMCorrector:
+    def __init__(self):
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.model = os.getenv("LLM_MODEL", "gpt-4o-mini")
+        self.history = []
+        self.system_prompt = self.load_prompt("default.txt")
+        self.enabled = False
+
+    def load_prompt(self, filename):
+        try:
+            with open(os.path.join(PROMPTS_DIR, filename), 'r') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error loading prompt {filename}: {e}")
+            return "Sei un assistente che corregge trascrizioni."
+
+    def save_prompt(self, filename, content):
+        try:
+            with open(os.path.join(PROMPTS_DIR, filename), 'w') as f:
+                f.write(content)
+            self.system_prompt = content
+            return True
+        except Exception as e:
+            print(f"Error saving prompt {filename}: {e}")
+            return False
+
+    def correct(self, text):
+        if not self.enabled or not text.strip():
+            self.history.append(text)
+            if len(self.history) > 10:
+                self.history.pop(0)
+            return text
+
+        context = "\n".join(self.history)
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": f"Context:\n{context}\n\nPhrase to correct:\n{text}"}
+        ]
+
+        try:
+            # Attempt with max_completion_tokens (for reasoning models)
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_completion_tokens=150
+            )
+            corrected_text = response.choices[0].message.content.strip()
+            self.history.append(corrected_text)
+            if len(self.history) > 10:
+                self.history.pop(0)
+            return corrected_text
+        except Exception as e:
+            print(f"LLM Error (max_completion_tokens): {e}")
+            # Fallback to max_tokens (for standard models)
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    max_tokens=150
+                )
+                corrected_text = response.choices[0].message.content.strip()
+                self.history.append(corrected_text)
+                if len(self.history) > 10:
+                    self.history.pop(0)
+                return corrected_text
+            except Exception as e2:
+                print(f"LLM Error (max_tokens): {e2}")
+                return text
 
 class VirtualKeyboard:
     """
@@ -161,7 +238,6 @@ class Transcriber(threading.Thread):
         self.running = False
         self.paused = True
         self.daemon = True
-        self.keyboard = VirtualKeyboard()
         self.model = None
         
         # Load Vosk Model
@@ -210,7 +286,7 @@ class Transcriber(threading.Thread):
                     text = res['text']
                     if text:
                         GLib.idle_add(self.update_callback, text, True)
-                        self.keyboard.type_string(text + " ")
+                        # Typing is now handled in update_callback (AppWindow) after optional correction
                 else:
                     partial = json.loads(self.rec.PartialResult())
                     if partial['partial']:
@@ -223,7 +299,6 @@ class Transcriber(threading.Thread):
                 stream.stop_stream()
                 stream.close()
             self.p.terminate()
-            self.keyboard.close()
 
     def start_listening(self):
         self.paused = False
@@ -236,6 +311,149 @@ class Transcriber(threading.Thread):
     def stop_app(self):
         self.running = False
 
+class InputDialog(Gtk.Window):
+    def __init__(self, parent, title, message, callback):
+        super().__init__(title=title)
+        self.set_transient_for(parent)
+        self.set_modal(True)
+        self.set_default_size(300, 150)
+        self.callback = callback
+        
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        self.set_child(vbox)
+        
+        lbl = Gtk.Label(label=message)
+        vbox.append(lbl)
+        
+        self.entry = Gtk.Entry()
+        vbox.append(self.entry)
+        
+        hbox = Gtk.Box(spacing=10)
+        hbox.set_halign(Gtk.Align.CENTER)
+        vbox.append(hbox)
+        
+        btn_cancel = Gtk.Button(label="Cancel")
+        btn_cancel.connect("clicked", lambda x: self.close())
+        hbox.append(btn_cancel)
+        
+        btn_ok = Gtk.Button(label="OK")
+        btn_ok.connect("clicked", self.on_ok)
+        hbox.append(btn_ok)
+        
+    def on_ok(self, btn):
+        text = self.entry.get_text()
+        if text:
+            self.callback(text)
+        self.close()
+
+class PromptSettingsWindow(Gtk.Window):
+    def __init__(self, parent, llm_corrector):
+        super().__init__(title="Prompt Settings")
+        self.set_transient_for(parent)
+        self.set_modal(True)
+        self.set_default_size(600, 400)
+        self.llm_corrector = llm_corrector
+
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox.set_margin_top(10)
+        vbox.set_margin_bottom(10)
+        vbox.set_margin_start(10)
+        vbox.set_margin_end(10)
+        self.set_child(vbox)
+
+        # File selection
+        hbox_file = Gtk.Box(spacing=10)
+        vbox.append(hbox_file)
+        
+        self.file_combo = Gtk.ComboBoxText()
+        self.refresh_file_list()
+        self.file_combo.set_active(0)
+        self.file_combo.connect("changed", self.on_file_changed)
+        hbox_file.append(self.file_combo)
+
+        new_btn = Gtk.Button(label="New")
+        new_btn.connect("clicked", self.on_new_clicked)
+        hbox_file.append(new_btn)
+
+        # Text Area
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        vbox.append(scrolled)
+
+        self.textview = Gtk.TextView()
+        self.textview.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.textbuffer = self.textview.get_buffer()
+        self.textbuffer.set_text(self.llm_corrector.system_prompt)
+        scrolled.set_child(self.textview)
+
+        # Save Button
+        save_btn = Gtk.Button(label="Save & Apply")
+        save_btn.add_css_class("suggested-action")
+        save_btn.connect("clicked", self.on_save_clicked)
+        vbox.append(save_btn)
+
+    def refresh_file_list(self):
+        self.file_combo.remove_all()
+        files = [f for f in os.listdir(PROMPTS_DIR) if f.endswith(".txt")]
+        for f in files:
+            self.file_combo.append_text(f)
+        if not files:
+            self.file_combo.append_text("default.txt")
+
+    def on_file_changed(self, widget):
+        filename = widget.get_active_text()
+        if filename:
+            content = self.llm_corrector.load_prompt(filename)
+            self.textbuffer.set_text(content)
+
+    def on_new_clicked(self, widget):
+        def on_filename_entered(filename):
+            if not filename.endswith(".txt"):
+                filename += ".txt"
+            # Clear text buffer for new prompt
+            self.textbuffer.set_text("")
+            # Add to combo and select
+            self.file_combo.append_text(filename)
+            self.file_combo.set_active_id(filename) # This might not work if id not set, let's just select last
+            # Since we just appended, it should be the last one
+            # But we need to handle the combo logic. 
+            # Simpler: just set the text in combo entry if it was editable, but it's not.
+            # Let's refresh list? No, file doesn't exist yet.
+            # We'll just pretend it's selected by setting a flag or just letting the user type.
+            # Actually, the save button uses the combo active text.
+            # We need to make sure the combo shows this new filename.
+            # ComboBoxText doesn't easily allow setting arbitrary text if not in model.
+            # So we add it.
+            # But wait, refresh_file_list clears it.
+            # Let's just add it.
+            # self.file_combo.append_text(filename) # Already done above
+            # Select it
+            # To select by text in ComboBoxText is tricky without ID.
+            # Let's iterate to find it.
+            model = self.file_combo.get_model()
+            iter_ = model.get_iter_first()
+            while iter_:
+                if model.get_value(iter_, 0) == filename:
+                    self.file_combo.set_active_iter(iter_)
+                    break
+                iter_ = model.iter_next(iter_)
+        
+        InputDialog(self, "New Prompt", "Enter filename (e.g. my_prompt):", on_filename_entered).present()
+
+    def on_save_clicked(self, widget):
+        start, end = self.textbuffer.get_bounds()
+        content = self.textbuffer.get_text(start, end, True)
+        filename = self.file_combo.get_active_text()
+        if not filename:
+            filename = "custom.txt" # Fallback
+        
+        if self.llm_corrector.save_prompt(filename, content):
+            self.close()
+
 class AppWindow(Adw.ApplicationWindow):
     """
     Main GTK 4 Application Window using Libadwaita.
@@ -243,6 +461,9 @@ class AppWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="ParlaType - Speech to Text")
         self.set_default_size(450, 350)
+        
+        self.llm_corrector = LLMCorrector()
+        self.keyboard = VirtualKeyboard()
 
         # Main Layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -251,6 +472,20 @@ class AppWindow(Adw.ApplicationWindow):
         # Header Bar (Title and Close button)
         header = Adw.HeaderBar()
         vbox.append(header)
+        
+        # Menu Button in Header
+        menu = Gio.Menu()
+        menu.append("Prompt Settings", "win.prompt_settings")
+        
+        menu_btn = Gtk.MenuButton()
+        menu_btn.set_icon_name("open-menu-symbolic")
+        menu_btn.set_menu_model(menu)
+        header.pack_end(menu_btn)
+        
+        # Actions
+        action = Gio.SimpleAction.new("prompt_settings", None)
+        action.connect("activate", self.on_prompt_settings)
+        self.add_action(action)
 
         # Content Area
         content_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
@@ -259,6 +494,18 @@ class AppWindow(Adw.ApplicationWindow):
         content_vbox.set_margin_start(12)
         content_vbox.set_margin_end(12)
         vbox.append(content_vbox)
+
+        # LLM Toggle
+        hbox_llm = Gtk.Box(spacing=10)
+        content_vbox.append(hbox_llm)
+        
+        llm_label = Gtk.Label(label="LLM Correction")
+        hbox_llm.append(llm_label)
+        
+        self.llm_switch = Gtk.Switch()
+        self.llm_switch.set_active(False)
+        self.llm_switch.connect("state-set", self.on_llm_toggled)
+        hbox_llm.append(self.llm_switch)
 
         # Status Label
         self.status_label = Gtk.Label(label="Initializing...")
@@ -329,6 +576,14 @@ class AppWindow(Adw.ApplicationWindow):
         else:
             print("Trayer not available. System tray icon will not be shown.")
 
+    def on_prompt_settings(self, action, param):
+        win = PromptSettingsWindow(self, self.llm_corrector)
+        win.present()
+
+    def on_llm_toggled(self, widget, state):
+        self.llm_corrector.enabled = state
+        return False # Allow state change
+
     def on_quit_clicked(self):
         self.get_application().quit()
 
@@ -356,13 +611,30 @@ class AppWindow(Adw.ApplicationWindow):
 
     def update_text(self, text, is_final):
         if is_final:
-            timestamp = time.strftime('%H:%M:%S')
-            end_iter = self.textbuffer.get_end_iter()
-            self.textbuffer.insert(end_iter, f"\n[{timestamp}]: {text}")
-            # Auto-scroll to bottom
-            self.textview.scroll_to_iter(self.textbuffer.get_end_iter(), 0.0, False, 0.0, 0.0)
+            # Apply LLM correction if enabled
+            if self.llm_corrector.enabled:
+                self.status_label.set_text("Correcting with LLM...")
+                # Run in a separate thread to avoid blocking UI
+                threading.Thread(target=self._process_correction, args=(text,)).start()
+            else:
+                self._finalize_text(text)
         else:
             self.status_label.set_text(f"Listening: {text}")
+
+    def _process_correction(self, text):
+        corrected = self.llm_corrector.correct(text)
+        GLib.idle_add(self._finalize_text, corrected)
+
+    def _finalize_text(self, text):
+        timestamp = time.strftime('%H:%M:%S')
+        end_iter = self.textbuffer.get_end_iter()
+        self.textbuffer.insert(end_iter, f"\n[{timestamp}]: {text}")
+        # Auto-scroll to bottom
+        self.textview.scroll_to_iter(self.textbuffer.get_end_iter(), 0.0, False, 0.0, 0.0)
+        self.status_label.set_text("Ready.")
+        
+        # Type the text
+        self.keyboard.type_string(text + " ")
 
     def toggle_window(self):
         if self.get_visible():
