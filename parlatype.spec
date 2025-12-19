@@ -14,12 +14,12 @@ BuildRequires:  python3-pip
 BuildRequires:  gcc
 # Dependencies for PyInstaller and the app
 BuildRequires:  portaudio-devel
-BuildRequires:  gtk3-devel
-BuildRequires:  libappindicator-gtk3-devel
+BuildRequires:  gtk4-devel
+BuildRequires:  libadwaita-devel
 
 Requires:       portaudio
-Requires:       gtk3
-Requires:       libappindicator-gtk3
+Requires:       gtk4
+Requires:       libadwaita
 Requires:       unzip
 Requires:       wget
 

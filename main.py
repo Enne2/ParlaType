@@ -27,16 +27,16 @@ import pyaudio
 from vosk import Model, KaldiRecognizer
 from evdev import UInput, ecodes as e
 
-# Ensure GTK 3 compatibility
-gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, GLib, Gdk
+# Ensure GTK 4 compatibility
+gi.require_version('Gtk', '4.0')
+gi.require_version('Adw', '1') # Using libadwaita for a modern look if available
+from gi.repository import Gtk, Gdk, GLib, Gio, Adw
 
-# Try to import AppIndicator3 for system tray support
+# Tray icon support via trayer
 try:
-    gi.require_version('AppIndicator3', '0.1')
-    from gi.repository import AppIndicator3
-except (ValueError, ImportError):
-    AppIndicator3 = None
+    import trayer
+except ImportError:
+    trayer = None
 
 # --- Configuration ---
 def get_model_path():
@@ -236,23 +236,34 @@ class Transcriber(threading.Thread):
     def stop_app(self):
         self.running = False
 
-class AppWindow(Gtk.Window):
+class AppWindow(Adw.ApplicationWindow):
     """
-    Main GTK Application Window.
+    Main GTK 4 Application Window using Libadwaita.
     """
-    def __init__(self):
-        Gtk.Window.__init__(self, title="ParlaType - Speech to Text")
-        self.set_border_width(10)
-        self.set_default_size(400, 300)
-        self.set_position(Gtk.WindowPosition.CENTER)
+    def __init__(self, app):
+        super().__init__(application=app, title="ParlaType - Speech to Text")
+        self.set_default_size(450, 350)
 
         # Main Layout
-        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.add(vbox)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.set_content(vbox)
+
+        # Header Bar (Title and Close button)
+        header = Adw.HeaderBar()
+        vbox.append(header)
+
+        # Content Area
+        content_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        content_vbox.set_margin_top(12)
+        content_vbox.set_margin_bottom(12)
+        content_vbox.set_margin_start(12)
+        content_vbox.set_margin_end(12)
+        vbox.append(content_vbox)
 
         # Status Label
         self.status_label = Gtk.Label(label="Initializing...")
-        vbox.pack_start(self.status_label, False, False, 0)
+        self.status_label.set_halign(Gtk.Align.START)
+        content_vbox.append(self.status_label)
 
         # Text Area for logs/transcript
         self.textview = Gtk.TextView()
@@ -263,25 +274,27 @@ class AppWindow(Gtk.Window):
         scrolled_window = Gtk.ScrolledWindow()
         scrolled_window.set_hexpand(True)
         scrolled_window.set_vexpand(True)
-        scrolled_window.add(self.textview)
-        vbox.pack_start(scrolled_window, True, True, 0)
+        scrolled_window.set_child(self.textview)
+        content_vbox.append(scrolled_window)
 
         # Buttons
         hbox = Gtk.Box(spacing=6)
-        vbox.pack_start(hbox, False, False, 0)
+        content_vbox.append(hbox)
 
         self.start_button = Gtk.Button(label="Start")
+        self.start_button.add_css_class("suggested-action")
         self.start_button.connect("clicked", self.on_start_clicked)
-        hbox.pack_start(self.start_button, True, True, 0)
+        hbox.append(self.start_button)
 
         self.stop_button = Gtk.Button(label="Stop")
+        self.stop_button.add_css_class("destructive-action")
         self.stop_button.connect("clicked", self.on_stop_clicked)
         self.stop_button.set_sensitive(False)
-        hbox.pack_start(self.stop_button, True, True, 0)
+        hbox.append(self.stop_button)
 
         self.hide_button = Gtk.Button(label="Hide")
         self.hide_button.connect("clicked", self.on_hide_clicked)
-        hbox.pack_start(self.hide_button, True, True, 0)
+        hbox.append(self.hide_button)
 
         # Tray Icon Setup
         self._setup_tray_icon()
@@ -297,81 +310,46 @@ class AppWindow(Gtk.Window):
             self.textbuffer.set_text("Error: Vosk model not found.\n\nPlease run 'sudo parlatype-setup' in a terminal to download and install the Italian language model.")
 
     def _setup_tray_icon(self):
-        if AppIndicator3:
-            self.indicator = AppIndicator3.Indicator.new(
-                "parlatype-app",
-                "microphone",
-                AppIndicator3.IndicatorCategory.APPLICATION_STATUS
+        if trayer:
+            self.tray = trayer.TrayIcon(
+                app_id="parlatype-app",
+                title="ParlaType",
+                icon_name="microphone-sensitivity-muted-symbolic"
             )
-            self.indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
-            self.indicator.set_menu(self.build_menu())
+            # Use lambda *args to handle any number of arguments from trayer
+            self.tray.add_menu_item("Show/Hide", lambda *args: GLib.idle_add(self.toggle_window))
+            self.tray.add_menu_separator()
+            self.tray.add_menu_item("Start Listening", lambda *args: GLib.idle_add(self.on_start_clicked, None))
+            self.tray.add_menu_item("Stop Listening", lambda *args: GLib.idle_add(self.on_stop_clicked, None))
+            self.tray.add_menu_separator()
+            self.tray.add_menu_item("Quit", lambda *args: GLib.idle_add(self.on_quit_clicked))
+            
+            self.tray.set_left_click(lambda *args: GLib.idle_add(self.toggle_window))
+            self.tray.setup()
         else:
-            # Fallback for systems without AppIndicator
-            self.status_icon = Gtk.StatusIcon()
-            self.status_icon.set_from_icon_name("microphone")
-            self.status_icon.set_tooltip_text("ParlaType")
-            self.status_icon.connect("popup-menu", self.on_tray_popup)
-            self.status_icon.set_visible(True)
+            print("Trayer not available. System tray icon will not be shown.")
 
-    def build_menu(self):
-        menu = Gtk.Menu()
-        
-        # Pause/Resume
-        self.pause_item = Gtk.CheckMenuItem(label="Pause")
-        self.pause_item.set_active(True) # Starts paused
-        self.pause_item.connect("toggled", self.on_pause_toggled)
-        menu.append(self.pause_item)
-        
-        # Separator
-        menu.append(Gtk.SeparatorMenuItem())
-
-        item_show = Gtk.MenuItem(label="Show/Hide")
-        item_show.connect("activate", self.toggle_window)
-        menu.append(item_show)
-
-        item_quit = Gtk.MenuItem(label="Quit")
-        item_quit.connect("activate", Gtk.main_quit)
-        menu.append(item_quit)
-        
-        menu.show_all()
-        return menu
-
-    def on_pause_toggled(self, widget):
-        if widget.get_active():
-            self.on_stop_clicked(None)
-        else:
-            self.on_start_clicked(None)
+    def on_quit_clicked(self):
+        self.get_application().quit()
 
     def on_start_clicked(self, widget):
         self.transcriber.start_listening()
         self.start_button.set_sensitive(False)
         self.stop_button.set_sensitive(True)
-        
-        # Sync menu item if triggered by button
-        if hasattr(self, 'pause_item') and self.pause_item.get_active():
-             self.pause_item.set_active(False)
-
-        self._update_icon("microphone-sensitivity-high")
+        self._update_icon("microphone-sensitivity-high-symbolic")
 
     def on_stop_clicked(self, widget):
         self.transcriber.stop_listening()
         self.start_button.set_sensitive(True)
         self.stop_button.set_sensitive(False)
-        
-        # Sync menu item if triggered by button
-        if hasattr(self, 'pause_item') and not self.pause_item.get_active():
-             self.pause_item.set_active(True)
-
-        self._update_icon("microphone-sensitivity-muted")
+        self._update_icon("microphone-sensitivity-muted-symbolic")
 
     def _update_icon(self, icon_name):
-        if AppIndicator3 and hasattr(self, 'indicator'):
-            self.indicator.set_icon(icon_name)
-        elif hasattr(self, 'status_icon'):
-            self.status_icon.set_from_icon_name(icon_name)
+        if hasattr(self, 'tray'):
+            self.tray.change_icon(icon_name)
 
     def on_hide_clicked(self, widget):
-        self.hide()
+        self.set_visible(False)
 
     def update_status(self, message):
         self.status_label.set_text(message)
@@ -381,28 +359,28 @@ class AppWindow(Gtk.Window):
             end_iter = self.textbuffer.get_end_iter()
             self.textbuffer.insert(end_iter, f"\n[Final]: {text}")
             # Auto-scroll to bottom
-            mark = self.textbuffer.create_mark("end", end_iter, False)
-            self.textview.scroll_to_mark(mark, 0.05, True, 0.0, 1.0)
+            self.textview.scroll_to_iter(self.textbuffer.get_end_iter(), 0.0, False, 0.0, 0.0)
         else:
             self.status_label.set_text(f"Listening: {text}")
 
-    def on_tray_popup(self, icon, button, time):
-        menu = self.build_menu()
-        menu.popup(None, None, None, self.status_icon, button, time)
-
-    def toggle_window(self, widget):
-        if self.is_visible():
-            self.hide()
+    def toggle_window(self):
+        if self.get_visible():
+            self.set_visible(False)
         else:
-            self.show_all()
+            self.set_visible(True)
             self.present()
 
-    def on_destroy(self, widget):
-        self.transcriber.stop_app()
-        Gtk.main_quit()
+class ParlaTypeApp(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="net.enne2.parlatype",
+                         flags=Gio.ApplicationFlags.FLAGS_NONE)
+
+    def do_activate(self):
+        win = self.props.active_window
+        if not win:
+            win = AppWindow(self)
+        win.present()
 
 if __name__ == "__main__":
-    win = AppWindow()
-    win.connect("destroy", win.on_destroy)
-    win.show_all()
-    Gtk.main()
+    app = ParlaTypeApp()
+    sys.exit(app.run(sys.argv))

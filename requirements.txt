@@ -2,3 +2,5 @@ vosk
 pyaudio
 evdev
 PyGObject
+trayer
+dbus-python
