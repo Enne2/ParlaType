@@ -39,7 +39,25 @@ except (ValueError, ImportError):
     AppIndicator3 = None
 
 # --- Configuration ---
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models/vosk-model-it-0.22")
+def get_model_path():
+    # Check local path (development or bundled)
+    local_path = os.path.join(os.path.dirname(__file__), "models/vosk-model-it-0.22")
+    if os.path.exists(local_path):
+        return local_path
+    
+    # Check user data path
+    user_path = os.path.expanduser("~/.local/share/parlatype/models/vosk-model-it-0.22")
+    if os.path.exists(user_path):
+        return user_path
+        
+    # Check system path
+    system_path = "/usr/share/parlatype/models/vosk-model-it-0.22"
+    if os.path.exists(system_path):
+        return system_path
+        
+    return None
+
+MODEL_PATH = get_model_path()
 SAMPLE_RATE = 16000
 FRAMES_PER_BUFFER = 8000
 READ_CHUNK_SIZE = 4000
@@ -269,8 +287,14 @@ class AppWindow(Gtk.Window):
         self._setup_tray_icon()
 
         # Initialize Transcriber
-        self.transcriber = Transcriber(self.update_text, self.update_status)
-        self.transcriber.start()
+        if MODEL_PATH:
+            self.transcriber = Transcriber(self.update_text, self.update_status)
+            self.transcriber.start()
+        else:
+            self.update_status("Model not found! Please run 'parlatype-setup' to download it.")
+            self.start_button.set_sensitive(False)
+            self.stop_button.set_sensitive(False)
+            self.textbuffer.set_text("Error: Vosk model not found.\n\nPlease run 'sudo parlatype-setup' in a terminal to download and install the Italian language model.")
 
     def _setup_tray_icon(self):
         if AppIndicator3:

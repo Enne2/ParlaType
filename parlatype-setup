@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# parlatype-setup
+# Downloads and installs the Italian Vosk model for ParlaType.
+
+MODEL_URL="https://alphacephei.com/vosk/models/vosk-model-it-0.22.zip"
+MODEL_NAME="vosk-model-it-0.22"
+ZIP_NAME="vosk-model-it-0.22.zip"
+
+# Determine install location based on user
+if [ "$EUID" -eq 0 ]; then
+    INSTALL_DIR="/usr/share/parlatype/models"
+    echo "Running as root. Installing system-wide to $INSTALL_DIR"
+else
+    INSTALL_DIR="$HOME/.local/share/parlatype/models"
+    echo "Running as user. Installing locally to $INSTALL_DIR"
+fi
+
+# Check if model already exists
+if [ -d "$INSTALL_DIR/$MODEL_NAME" ]; then
+    echo "Model already installed at $INSTALL_DIR/$MODEL_NAME"
+    exit 0
+fi
+
+# Create directory
+mkdir -p "$INSTALL_DIR"
+
+# Download
+echo "Downloading model from $MODEL_URL..."
+if command -v curl &> /dev/null; then
+    curl -L -o "$INSTALL_DIR/$ZIP_NAME" "$MODEL_URL"
+elif command -v wget &> /dev/null; then
+    wget -O "$INSTALL_DIR/$ZIP_NAME" "$MODEL_URL"
+else
+    echo "Error: neither curl nor wget found. Please install one of them."
+    exit 1
+fi
+
+if [ $? -ne 0 ]; then
+    echo "Download failed."
+    exit 1
+fi
+
+# Extract
+echo "Extracting model..."
+unzip -o "$INSTALL_DIR/$ZIP_NAME" -d "$INSTALL_DIR"
+
+if [ $? -ne 0 ]; then
+    echo "Extraction failed."
+    exit 1
+fi
+
+# Cleanup
+rm "$INSTALL_DIR/$ZIP_NAME"
+
+echo "Model installed successfully!"
