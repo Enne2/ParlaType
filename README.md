@@ -6,117 +6,63 @@
 ParlaType è un'applicazione Python che utilizza il riconoscimento vocale offline (Vosk) per trascrivere il parlato e digitarlo automaticamente come se fosse una tastiera fisica. 
 
 **Nota Importante**: Questo progetto è specificamente concepito e ottimizzato per la **lingua italiana**. La mappatura dei tasti e il modello vocale incluso sono configurati per gestire correttamente i caratteri accentati e la fonetica italiana.
-tar -tzf ~/rpmbuild/SOURCES/parlatype-1.0.0.tar.gz > /dev/null && echo "Tarball OK" || echo "Tarball Corrupt"
+
 ## Caratteristiche
 
 - **Riconoscimento Vocale Offline**: Utilizza Vosk, quindi non richiede connessione internet e garantisce la privacy.
-- **Ottimizzato per l'Italiano**: Include il modello `vosk-model-it-0.22` e gestisce nativamente caratteri come `à`, `è`, `é`, `ì`, `ò`, `ù`.
+- **Ottimizzato per l'Italiano**: Include il supporto per il modello `vosk-model-it-0.22` e gestisce nativamente caratteri come `à`, `è`, `é`, `ì`, `ò`, `ù`.
 - **Tastiera Virtuale**: Simula la pressione dei tasti tramite `evdev` e `uinput`, permettendo di dettare testo in qualsiasi applicazione.
-- **Interfaccia Grafica**: GUI minimale basata su GTK 3 con indicatore nella system tray (se supportato).
+- **Interfaccia Moderna**: GUI basata su **GTK 4** e **Libadwaita** per un'integrazione perfetta con gli ambienti desktop moderni (come GNOME).
+- **Integrazione LLM**: Supporto opzionale per il post-processing del testo tramite modelli di linguaggio (LLM) per correggere la punteggiatura e la grammatica.
 
-## Licenza e Modelli
+## Installazione
 
-Il codice sorgente di ParlaType è rilasciato sotto licenza MIT.
+### Pacchetti Pronti (Consigliato)
 
-Il modello vocale incluso (`vosk-model-it-0.22`) è sviluppato da [Alpha Cephei](https://alphacephei.com/vosk/) ed è rilasciato sotto licenza **Apache 2.0**. È quindi possibile ridistribuirlo liberamente insieme a questa applicazione.
-Per maggiori informazioni sui modelli Vosk, visitare la [pagina ufficiale dei modelli](https://alphacephei.com/vosk/models).
+Puoi scaricare i pacchetti precompilati dalla sezione [Releases](https://git.enne2.net/enne2/parlaType/releases):
 
-## Prerequisiti
+- **Fedora/RPM**: `sudo dnf install ./parlatype-2.0.0-6.fc43.noarch.rpm`
+- **Debian/Ubuntu/DEB**: `sudo apt install ./parlatype_2.0.0-7_all.deb`
 
-Il progetto è sviluppato per **Linux**.
+Questi pacchetti installeranno automaticamente tutte le dipendenze e configureranno un ambiente virtuale isolato in `/usr/share/parlatype/venv`.
 
-### Dipendenze di Sistema
+### Da Sorgente (Sviluppo)
 
-Prima di installare le dipendenze Python, è necessario installare alcune librerie di sistema. Su sistemi basati su Debian/Ubuntu:
+1.  Clona il repository.
+2.  Installa le dipendenze di sistema (Fedora):
+    ```bash
+    sudo dnf install python3-devel portaudio-devel libadwaita-devel gobject-introspection-devel
+    ```
+3.  Crea un virtual environment e installa le dipendenze Python:
+    ```bash
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    ```
+4.  Esegui lo script di installazione locale:
+    ```bash
+    ./install.sh
+    ```
+
+## Configurazione Modello Vocale
+
+L'applicazione richiede il modello italiano di Vosk. Se installi tramite RPM/DEB o usi lo script di installazione, puoi scaricare il modello automaticamente eseguendo:
 
 ```bash
-sudo apt-get update
-sudo apt-get install python3-dev python3-pip portaudio19-dev libgirepository1.0-dev libcairo2-dev pkg-config libgirepository1.0-dev
+parlatype-setup
 ```
 
-### Permessi
+Oppure scaricalo manualmente da [Vosk Models](https://alphacephei.com/vosk/models) ed estrailo in `models/vosk-model-it-0.22`.
 
-L'applicazione necessita di accedere a `/dev/uinput` per creare la tastiera virtuale. Puoi eseguire lo script come root (sconsigliato per l'uso quotidiano) o aggiungere il tuo utente al gruppo `input` (o creare una regola udev specifica).
+## Permessi
 
-Per aggiungere l'utente al gruppo `input` (potrebbe richiedere il riavvio o il logout):
+L'applicazione necessita di accedere a `/dev/uinput`. Assicurati che il tuo utente faccia parte del gruppo `input`:
 
 ```bash
 sudo usermod -aG input $USER
 ```
+*(Potrebbe essere necessario il riavvio)*.
 
-Inoltre, assicurati che i permessi su `/dev/uinput` siano corretti.
+## Licenza
 
-## Installazione
-
-1.  Clona il repository o scarica i file.
-2.  Crea un virtual environment (opzionale ma consigliato):
-
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-
-3.  Installa le dipendenze Python:
-
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Modello Vosk**:
-    Il progetto si aspetta di trovare il modello nella cartella `models/vosk-model-it-0.22`.
-    Assicurati che la struttura delle cartelle sia:
-    ```
-    keyTalk/
-    ├── main.py
-    ├── models/
-    │   └── vosk-model-it-0.22/
-    │       ├── model.conf
-    │       └── ...
-    ```
-    Se non hai il modello, scaricalo dal [sito ufficiale di Vosk](https://alphacephei.com/vosk/models) ed estrailo nella cartella `models`.
-
-## Installazione Desktop (Opzionale)
-
-Per integrare ParlaType nel menu delle applicazioni del tuo sistema desktop (GNOME, KDE, ecc.), puoi utilizzare lo script di installazione fornito:
-
-```bash
-./install.sh
-```
-
-Questo script:
-1. Creerà il virtual environment e installerà le dipendenze (se non presenti).
-2. Genererà un file `.desktop` con i percorsi corretti.
-3. Installerà l'icona e il collegamento nel menu applicazioni.
-
-## Utilizzo
-
-### Da Terminale
-Attiva il virtual environment (se creato) ed esegui lo script:
-
-```bash
-source .venv/bin/activate
-python main.py
-```
-
-**Nota**: Se non hai configurato i permessi per il tuo utente, potresti dover usare `sudo`:
-
-```bash
-sudo .venv/bin/python main.py
-```
-
-Una volta avviato:
-1.  L'applicazione inizierà ad ascoltare dal microfono predefinito.
-2.  Posiziona il cursore dove vuoi scrivere (es. un editor di testo).
-3.  Parla: il testo riconosciuto verrà digitato automaticamente.
-
-## Struttura del Progetto
-
-- `main.py`: Codice principale dell'applicazione (GUI, Thread di trascrizione, Gestione tastiera).
-- `requirements.txt`: Elenco delle dipendenze Python.
-- `models/`: Cartella contenente i modelli Vosk.
-
-## Risoluzione Problemi
-
-- **Errore `Permission denied` su `/dev/uinput`**: Esegui con `sudo` o configura correttamente i permessi del gruppo `input`.
-- **Errore PyAudio**: Assicurati di aver installato `portaudio19-dev`.
-- **Caratteri sbagliati**: La mappatura è configurata per un layout di tastiera italiano. Se usi un layout diverso, potresti dover modificare `CHAR_MAP` in `main.py`.
+Rilasciato sotto licenza MIT. Il modello vocale Vosk è rilasciato sotto licenza Apache 2.0.
