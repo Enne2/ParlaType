@@ -1,8 +1,9 @@
 Name:           parlatype
 Version:        2.0.0
-Release:        5%{?dist}
+Release:        7%{?dist}
 Summary:        Speech-to-Text Virtual Keyboard (Italian Edition)
 
+BuildArch:      noarch
 %define debug_package %{nil}
 
 License:        MIT
@@ -11,13 +12,11 @@ Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  python3-devel
 BuildRequires:  python3-pip
-BuildRequires:  gcc
-# Dependencies for PyInstaller and the app
-BuildRequires:  portaudio-devel
-BuildRequires:  gtk4-devel
-BuildRequires:  libadwaita-devel
 
-Requires:       portaudio
+Requires:       python3
+Requires:       python3-devel
+Requires:       gcc
+Requires:       portaudio-devel
 Requires:       gtk4
 Requires:       libadwaita
 Requires:       unzip
@@ -32,34 +31,26 @@ This version is specifically tuned for the Italian language.
 %setup -q
 
 %build
-# Optimize build for multiple cores
-export MAKEFLAGS="-j$(nproc)"
-export CMAKE_BUILD_PARALLEL_LEVEL=$(nproc)
-
-# Create virtual environment and install dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip --no-compile
-pip install -r requirements.txt --no-compile
-pip install pyinstaller --no-compile
-
-# Compile with PyInstaller
-pyinstaller --noconfirm main.spec
+# No compilation needed for noarch source-based RPM
+# Just verify syntax
+python3 -m py_compile main.py
 
 %install
 mkdir -p %{buildroot}/usr/bin
-mkdir -p %{buildroot}/usr/lib/%{name}
+mkdir -p %{buildroot}/usr/share/%{name}
+mkdir -p %{buildroot}/usr/share/%{name}/prompts
 mkdir -p %{buildroot}/usr/share/applications
 mkdir -p %{buildroot}/usr/share/icons/hicolor/scalable/apps
 
-# Copy the compiled files
-cp -r dist/main/* %{buildroot}/usr/lib/%{name}/
+# Copy source files
+cp main.py %{buildroot}/usr/share/%{name}/
+cp -r parlatype %{buildroot}/usr/share/%{name}/
+cp requirements.txt %{buildroot}/usr/share/%{name}/
+cp -r prompts/* %{buildroot}/usr/share/%{name}/prompts/
 
-# Install setup script
+# Install launcher script
+install -m 755 parlatype.sh %{buildroot}/usr/bin/parlatype
 install -m 755 parlatype-setup %{buildroot}/usr/bin/
-
-# Create a symlink to the binary
-ln -s /usr/lib/%{name}/parlatype %{buildroot}/usr/bin/parlatype
 
 # Install desktop file and icon
 sed -i 's|Exec=.*|Exec=/usr/bin/parlatype|' parlatype.desktop
@@ -70,6 +61,15 @@ cp parlatype.svg %{buildroot}/usr/share/icons/hicolor/scalable/apps/
 %post
 echo "----------------------------------------------------------------------"
 echo "ParlaType installed successfully."
+echo "Creating virtual environment and installing dependencies..."
+APP_DIR="/usr/share/parlatype"
+VENV_DIR="$APP_DIR/venv"
+
+python3 -m venv "$VENV_DIR"
+source "$VENV_DIR/bin/activate"
+pip install --upgrade pip --no-compile
+pip install -r "$APP_DIR/requirements.txt" --no-compile
+
 echo "Downloading the Italian speech model (this may take a while)..."
 /usr/bin/parlatype-setup || echo "Model download failed. You can try again manually with: sudo parlatype-setup"
 echo "----------------------------------------------------------------------"
@@ -77,10 +77,14 @@ echo "----------------------------------------------------------------------"
 %files
 /usr/bin/parlatype
 /usr/bin/parlatype-setup
-/usr/lib/%{name}/
+/usr/share/%{name}/
 /usr/share/applications/parlatype.desktop
 /usr/share/icons/hicolor/scalable/apps/parlatype.svg
 
 %changelog
-* Fri Dec 19 2025 Matteo Benedetto <matteo@enne2.net> - 1.0.0-1
-- Initial RPM release
+* Sat Dec 20 2025 Matteo Benedetto <matteo@enne2.net> - 2.0.0-7
+- Modularize codebase into parlatype package
+- Update README and ARCHITECTURE documentation
+
+* Sat Dec 20 2025 Matteo Benedetto <matteo@enne2.net> - 2.0.0-6
+- Switch to noarch source-based RPM with venv creation in %post

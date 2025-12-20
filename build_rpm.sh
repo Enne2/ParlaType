@@ -15,7 +15,7 @@ TEMP_DIR=$(mktemp -d)
 mkdir -p "$TEMP_DIR/$APP_NAME-$VERSION"
 
 # Copy files to temp dir
-cp -r main.py requirements.txt README.md parlatype.desktop parlatype.svg main.spec parlatype-setup "$TEMP_DIR/$APP_NAME-$VERSION/"
+cp -r main.py parlatype requirements.txt README.md parlatype.desktop parlatype.svg parlatype-setup parlatype.sh "$TEMP_DIR/$APP_NAME-$VERSION/"
 cp -r prompts "$TEMP_DIR/$APP_NAME-$VERSION/"
 # Models are downloaded at install time, not included in RPM
 # cp -r models "$TEMP_DIR/$APP_NAME-$VERSION/"
